@@ -1,44 +1,65 @@
+% These sample BR model simulations vary r_on from 0.1 to 0.5 (0.1 steps) with a total of 10 runs each
 clear; 
 clc;
-% Update SaveDir to a directory on your computer
-SaveDir = 'X:\Mendoza Lab\MATLAB\Actin Growth Network Modeling\Test_ModelRun';    
-
-% Create all value combinations first so that I can feed them all into parallel processing loops --------------------------------------------------------------------------------------
-% In this simulation I'm verying adhesion lifetime curves (Pslope2, PA, Base) (See Test_DoubleExp.m)    
-    Pslope2 = [  1.040500,  0.922800,  0.86060 ];
-    PA      = [ -0.009727, -0.007286, -0.00612 ];
-    Base    = [ 2, 0.5, 0.25];
-    Pnum    = [1,2,3];
+SaveDir = 'D:\KEITH\Simulation_10secRuns_007b';    
+    
+   %Simulation setup -------------------------------------------------------------------------------------
+    values = [];
     nRuns = 10;
-    values = zeros(0,nRuns);
-    
-    for p = Pnum
+    r_on = 0.1:0.1:0.5;
+    %tau_peak  = [1,2,3];
+   
+    for m = 1:length(r_on)
         for r = 1:nRuns
-            values = [values; [p,Base(p),Pslope2(p),PA(p),r]];
+            values = [values; [r_on(m),r] ];
         end
     end
     
-    % I set this up for parallel processing, but I commented that line out (line 24) and just have running one simulation
-    % Notice I set the simulation time length as 120 seconds (line 26)
-    for k = 1:1
-    %parfor (k = 1:size(values,1),4)
-        ModelParameters = InitializeModelParameters;   % Create default values
-        ModelParameters.TotalSimulationTime = 120; 
-        ModelParameters.DoubleExp_Base   = values(k,2);
-        ModelParameters.DoubleExp_Slope2 = values(k,3);
-        ModelParameters.DoubleExp_A      = values(k,4);
-        ModelParameters.Adhesion_OFF_DependentOnAdhesionFilamentTension = true;
-        ModelParameters.AllowAdhesionFilamentBondBreak = true;
-        ModelParameters.BoundaryFixed = true;
-        ModelParameters.MembraneSpringConstant = 0.3; %3.0;
-        ModelParameters.Adhesion_ON_ActivationRate = 1;
-        ModelParameters.AdhesionTotalStartNumber = 2000;
-        SaveName = ['Simulation-001__','Peak', num2str(values(k,1)), '_Run', sprintf('%02.0f',values(k,5)), '.mat'];
-        if ~isfile(fullfile(SaveDir,SaveName))  % If code is re-run it will only run values not simulated yet
-            disp(SaveName)
-            [~] = SimulateLamellipodiumModel_KRC01(ModelParameters,SaveDir,SaveName,false);
+    nProcessors = 4;
+    parfor (k = 1:size(values,1),nProcessors)
+        
+             ModelParameters = InitializeModelParameters;
+            % Edit default ModelParameterrs==========================================================================
+                ModelParameters.TotalSimulationTime = 10;
+                ModelParameters.TimeStep = 0.001;
+                
+                ModelParameters.MemleadingEdgeLengthInNanometers = 2000; %2000
+                ModelParameters.SegmentWidth = 18;
+                SW = ModelParameters.SegmentWidth;
+                ModelParameters.MembraneGamma = 4.3092e-7*SW^2 + 2.4082e-3*SW + 6.0469e-3; % 0.05
+                ModelParameters.MembraneSpringConstant = 0.3;
+                 
+                ModelParameters.k_branch = 0.5;
+                
+                ModelParameters.Adhesion_MolecularClutchOn = false;
+                ModelParameters.MolecularClutch_PeakNumber = 1;
+                ModelParameters.Adhesion_ActivationRate   = values(k,1); % events/sec
+                ModelParameters.Adhesion_DeActivationRate = 0.3; % events/sec
+                
+                % Filament and adhesion density fine adjustment Scaling Factor ---------------------------
+                    Membrane = InitializeMembrane(ModelParameters);
+                        width = (Membrane.Nodes(end,1)- Membrane.Nodes(1,1))/1000;
+                        area1 = width*ModelParameters.AdhesionRegionDepth/1000;
+                %-----------------------------------------------------------------------------------------
+                % Set maximum allowed filaments
+                ModelParameters.FilamentMassThreshold = round(4500*width); %9000
+                % Set maximum allowed adhesions
+                if ModelParameters.Adhesion_MolecularClutchOn
+                    ModelParameters.AdhesionTotalStartNumber = round(area1*2000); % 800 MC = on, 400 MC = off; (for LeadingEdgeLength = 2000nm)
+                else
+                    ModelParameters.AdhesionTotalStartNumber = round(area1*1000);
+                end
+                
+                ModelParameters.BrownianRatchetOn = true;
+                ModelParameters.BoundaryFixed     = false;
+            %==========================================================================
+            SaveName = ['SIMULATION-007b__','Ron_',SimFormat(values(k,1)), '_run_',sprintf('%02.0f',values(k,2)), '.mat'];
+        
+        if ~isfile(fullfile(SaveDir,SaveName))  % If code is re-run it will only run values for files not created/completedsimulation yet
+            disp(SaveName);
+            [~] = SimulateLamellipodiumModel_KRC01(ModelParameters,SaveDir,SaveName,false,false,false); % Run simulation
         end
     end
-
-
-
+    disp('SIMULATION-007b complete') 
+    
+    

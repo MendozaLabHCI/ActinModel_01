@@ -3,13 +3,10 @@
             % Initialize Model paramaeters, filaments, membrane, and adhesions
             ModelParameters = InitializeModelParameters;
             %==========================================================================
-                ModelParameters.TotalSimulationTime = 5;
+                ModelParameters.TotalSimulationTime = 61;
                 ModelParameters.TimeStep = 0.001;
-                
-                ModelParameters.FilamentMassThreshold = 4500; %9000
+               
                 ModelParameters.MemleadingEdgeLengthInNanometers = 1000; %2000
-                ModelParameters.AdhesionTotalStartNumber = 400; %400; % 800 MC = on, 400 MC = off; (for LeadingEdgeLength = 2000nm)
-                
                 ModelParameters.Adhesion_ActivationRate = 1.0; % events/sec
                 ModelParameters.Adhesion_DeActivationRate = 0.1; % events/sec
                 ModelParameters.Adhesion_MolecularClutchOn = true;
@@ -17,12 +14,28 @@
                 ModelParameters.BrownianRatchetOn = true;
                 ModelParameters.BoundaryFixed = false;
                 
+                % Filament and adhesion density fine adjustment Scaling Factor ---------------------------
+                    Membrane = InitializeMembrane(ModelParameters);
+                        width = (Membrane.Nodes(end,1)- Membrane.Nodes(1,1))/1000;
+                        area1 = width*ModelParameters.AdhesionRegionDepth/1000;
+                %-----------------------------------------------------------------------------------------
+                
+                ModelParameters.FilamentMassThreshold = round(4500*width); %9000
+                
+                if ModelParameters.Adhesion_MolecularClutchOn
+                    ModelParameters.AdhesionTotalStartNumber = round(area1*2000); % 800 MC = on, 400 MC = off; (for LeadingEdgeLength = 2000nm)
+                else
+                    ModelParameters.AdhesionTotalStartNumber = round(area1*1000);
+                end
+                
+                
+                
                 ModelParameters.SegmentWidth = 18; % 18;
                 ModelParameters.MembraneGamma =  0.05;%0.05;
                 ModelParameters.SpringWidth  = 2; % 2;
                 ModelParameters.MembraneSpringConstant = 0.3;
                 ModelParameters.AdhesionSpringConstant = 10;
-                ModelParameters.BoundaryForceSpringConstant = 2;
+                ModelParameters.BoundaryForceSpringConstant = 10;
             %==========================================================================
             
             ShowPlot = true;
@@ -49,7 +62,7 @@
             index = 0;  
             count = 0;
             frame = 0;
-            nth = 100; % nth time frame to plot
+            nth = 50; % nth time frame to plot
             tic
             RecordFrames = false;
             BranchesPerMicron = [];
@@ -78,20 +91,20 @@
                 nAdhes(index,1) = length(find(Adhesions.ActiveStatus));
                 MemVel(index,1) = CalculateAveMembraneSpeed(Membrane,MembranePrevious,ModelParameters);
                 if t == 0.000
-                    nth = 50; 
+                    nth = 20; 
                     RecordFrames = true;
                 end
                 if ShowPlot
                     %[FAConnections,count] = PlotFilamentsAndMembrane_custom01(nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters);
-                    [FAConnections,count] = PlotFilamentsAndMembrane_custom02(nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters);
+                    [FAConnections,count] = PlotFilamentsAndMembrane_custom04(area1,nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters);
                     %BranchesPerMicron = [BranchesPerMicron; CalculateBranchesPerMicron(Filaments)];
-
-                    Write snapshots of figure as tif images
+                    drawnow
+                    %Write snapshots of figure as tif images
                     if RecordFrames && rem(count,nth) == 0 % nth = 1; RecordFrames = true;
                         frame = frame + 1;
                         F = getframe(FH);
                         imwrite(F.cdata,...
-                        ['X:\Mendoza Lab\MATLAB\Actin Growth Network Modeling\NEW_Model_Runs2\Movies\BR-MC tau = 3 Movie03_50msSteps_10sec\Frame_',sprintf('%04d',frame),'.tif'])
+                        ['X:\Mendoza Lab\MATLAB\Actin Growth Network Modeling\NEW_Model_Runs2\Movies\BR-MC_Tau3_Kb10_60sec_Movie01\Frame_',sprintf('%04d',frame),'.tif'])
                     end
                 end
 
@@ -99,7 +112,7 @@
                 count = count + 1;
                 MembranePrevious = Membrane;
                 
-                drawnow
+                
           
             end
             % END Model --------------------------------------------------------------------------------------------------

@@ -14,47 +14,53 @@ function [Filaments, Membrane, Adhesions, FAConnections, Tensions, kBreaks, Data
     % see if it is hitting the membrane and calculate the total force acting on the structure.
     Tensions = [];
     kBreaks = [];
-    Data.Adhesions = Adhesions;
+    
     Data.FAConnections.Tensions = [];
     Data.FAConnections.Regions  = [];
-    Data.FAConnections.FilmentName = [];
+    Data.FAConnections.FilamentName = [];
     Data.FAConnections.AdhesionIdx = [];
     Data.FilamentTips.YSpeed    = [];
     Data.FilamentTips.Region    = [];
     Data.FilamentTips.FilamentName = [];
     Data.FilamentTips.XYPosition = [];
+    Data.FilamentTips.StructName = [];
     
     % FILAMENT SECTION
     if ~isempty(Filaments.Name)
-        for MF = 1:nMF
-            Offset = 0;
+        for MF = 1:nMF % For each filament structure
             L = 0; % Total length of Filament
             idx1 = find( Filaments.MainIndex == Filaments.Name(idxMF(MF)) ); % Find all filaments attached to same structure
+            nF = length(idx1); % number of filaments in this structure
             % Calculate total length of filament structure
-                for f = idx1';  L = L + length(Filaments.MonomerIndices{f}); end
+                for f = idx1'  
+                    L = L + length(Filaments.MonomerIndices{f})*ModelParameters.MonomerLength/1000; % L is total length of filament structure in microns
+                end 
             % CALCULATE FORCES DUE TO FILAMENT-ADHESION CONNECTIONS and break connections where force is greater than threshold
                [FAx,FAy,Adhesions,FAConnections,Ts,kBs,Regions,AttachedFilament,AdhesionIndex] = CalculateForceDueToFAConnections(idx1,Filaments,Adhesions,FAConnections,ModelParameters);
                 % Concatentate all tensions and data about adhesions attached to filaments in this structure.
                 Tensions = [Tensions;Ts];
                 kBreaks  = [kBreaks; kBs];
-                Data.FAConnections.Tensions = [Data.FAConnections.Tensions; Ts];
-                Data.FAConnections.Regions  = [Data.FAConnections.Regions; Regions];
-                Data.FAConnections.FilmentName = [Data.FAConnections.FilmentName; AttachedFilament];
-                Data.FAConnections.AdhesionIdx = [Data.FAConnections.AdhesionIdx; AdhesionIndex];
+                Data.FAConnections.Tensions = [Data.FAConnections.Tensions; single(Ts)];
+                Data.FAConnections.Regions  = [Data.FAConnections.Regions; single(Regions)];
+                Data.FAConnections.FilamentName = [Data.FAConnections.FilamentName; single(AttachedFilament)];
+                Data.FAConnections.AdhesionIdx = [Data.FAConnections.AdhesionIdx; single(AdhesionIndex)];
             % CALCULATE FORCES ACTING ON FILAMENT FROM MEMBRANE
             % first check if and which filaments of the current structure are hitting the membrane ---------------
-                [FilInd,MemInd] = FindWhichFilamentsAreHittingMembraneAndWhere(idx1,Filaments,Membrane,ModelParameters);
+                [FilInd,MemInd] = FindWhichFilamentsAreHittingMembraneAndWhere(idx1,Filaments,Membrane,ModelParameters); %Filaments.XYCoords{f}(end,:)
                 % Calculate Membrane Spring and Boundary Force on Filamentary structure
                 Fm = TotalForceExertedByMembraneOnFilamentStructure(FilInd,MemInd,Filaments,Membrane,k,D,nS,ModelParameters);
             % Create Containment Force pointing at [0,0] from both sides in the X-dimension
-                Fc = 0;% Fc = CreateContainmentForce(Filaments,idx1,ModelParameters);
+                Fc = 0; % Fc = CreateContainmentForce(Filaments,idx1,ModelParameters);
             % CALCULATE NEW POSITION FOR FILAMENT STRUCTURE
-                gamma1 = (4*pi*3.01*L)/(0.84+log(L/0.007))/1000; % gamma for random fluid motion (pN*S/nm) 
+                Nu = ModelParameters.CytoplasmViscosity;
+                gamma1 = ( (4*pi*Nu*L) / (0.84+log(L/0.007)) )/1000; %  gamma for random fluid motion (pN*s/nm) 
                 SD = sqrt(2*4.114*gamma1/dt); % sqrt(2*(pN*nm)*(pN*S/nm)/S)
                 Fx = SD*randn(1);
                 Fy = SD*randn(1);
                 
-                for f = idx1' % Loop through all the filaments attached to this structure
+                tipXpositions = NaN(nF,1);
+                for n = 1:nF % Loop through all the filaments attached to this structure
+                    f = idx1(n);
                     yprevious = Filaments.XYCoords{f}(end,2);
                     
                     % START Calculate New Filament Position --------------------------------------------------------------------------
@@ -64,39 +70,53 @@ function [Filaments, Membrane, Adhesions, FAConnections, Tensions, kBreaks, Data
                     
                     % Record Filament Speed, Position, Region, etc of each tip .................................................
                     R = FindWhichRegionTheFilamentIsIn(Filaments.XYCoords{f}(end,1),Membrane,ModelParameters);
-                    Data.FilamentTips.YSpeed       = [Data.FilamentTips.YSpeed; (Filaments.XYCoords{f}(end,2) - yprevious)/ModelParameters.TimeStep];
-                    Data.FilamentTips.Region       = [Data.FilamentTips.Region; R];
-                    Data.FilamentTips.FilamentName = [Data.FilamentTips.FilamentName; Filaments.Name(f,1)];
-                    Data.FilamentTips.XYPosition   = [Data.FilamentTips.XYPosition; Filaments.XYCoords{f}(end,:)];
+                    Data.FilamentTips.YSpeed       = [Data.FilamentTips.YSpeed; single((Filaments.XYCoords{f}(end,2) - yprevious)/ModelParameters.TimeStep)];
+                    Data.FilamentTips.Region       = [Data.FilamentTips.Region; uint16(R)];
+                    Data.FilamentTips.FilamentName = [Data.FilamentTips.FilamentName; single(Filaments.Name(f,1))];
+                    Data.FilamentTips.XYPosition   = [Data.FilamentTips.XYPosition;   single(Filaments.XYCoords{f}(end,:))];
+                    Data.FilamentTips.StructName   = [Data.FilamentTips.StructName;   single(Filaments.MainIndex(f,1))];
                     
-                    % Mirror Filaments horizontally if their tip moves outside the boundary edge ------------------
-                    MemWidth = Membrane.Nodes(end,1) - Membrane.Nodes(1,1) - 40;
-                    BreakIdx = [];
-                    
-                    if  Filaments.XYCoords{f}(end,1) < Membrane.Nodes(1,1)
-                        Offset = +MemWidth; 
-                        BreakIdx = find(FAConnections.FilamentName == Filaments.Name(f,1)); % Break adhesions connection if it exists
-                    elseif Filaments.XYCoords{f}(end,1) > Membrane.Nodes(end,1)
-                        Offset = -MemWidth;
-                        BreakIdx = find(FAConnections.FilamentName == Filaments.Name(f,1)); % Break adhesions connection if it exists
+                    tipXpositions(n,1) = Filaments.XYCoords{f}(end,1); % Record for mirroring
+                end
+                
+                % Mirror Filaments horizontally if their tip moves outside the boundary edge ------------------
+                BreakIdx = [];
+                Offset = 0;
+
+                % Check if any of the filament tips in the structure are crossing the left or right membrane edge
+                if  min(tipXpositions) < Membrane.Nodes(1,1) 
+                    Offset = Membrane.Nodes(end,1) - max(tipXpositions); 
+                elseif max(tipXpositions) > Membrane.Nodes(end,1)
+                    Offset = Membrane.Nodes(1,1) - min(tipXpositions);
+                end
+                
+                % If there are any filaments out of bounds, move to the otherside just within the bounds
+                if ~isequal(Offset,0)
+                    % Apply offset to each filament in the structure
+                    for n = 1:nF
+                        f = idx1(n);
+                        Filaments.XYCoords{f}(:,1) = Filaments.XYCoords{f}(:,1) + Offset; % Apply Offset
+                        BreakIdx = [BreakIdx; find(FAConnections.FilamentName == Filaments.Name(f,1))]; % Find adhesion connections if they exists
                     end
-                    
+                    % Remove any adhesion connections. 
                     if ~isempty(BreakIdx)
-                        FAConnections.AdhesionIndex(BreakIdx,:) = [];
-                        FAConnections.FilamentName(BreakIdx,:)  = [];
-                        FAConnections.MonomerIndex(BreakIdx,:)  = [];
+                         a = FAConnections.AdhesionIndex(BreakIdx,1);
+                         Adhesions.AttachedFilamentName(a,1) = NaN;
+                         FAConnections.AdhesionIndex(BreakIdx,:) = [];
+                         FAConnections.FilamentName(BreakIdx,:) = [];
+                         FAConnections.MonomerIndex(BreakIdx,:) = [];
+                         % If Molecular clutch is ON deactivate adhesions
+                         if ModelParameters.Adhesion_MolecularClutchOn 
+                             Adhesions.XYPoints(a,1) = NaN;
+                             Adhesions.XYPoints(a,2) = NaN;
+                             Adhesions.RegionLocation(a,:) = NaN;
+                             Adhesions.ActiveStatus(a,1) = false;
+                             Adhesions.AttachedFilamentName(a,1) = NaN;
+                         end
                     end
-                    %----------------------------------------------------------------------------------------------    
                 end
                 
-                % Apply horizontal offset (if it applies) to all filaments in structure
-                if Offset ~= 0 
-                    for f = idx1'
-                        Filaments.XYCoords{f}(:,1) = Filaments.XYCoords{f}(:,1) + Offset;    
-                    end
-                end
-                
-        end
+        end 
     end
     
     % Set limits for membrane and calculate new positions -------------------------------
@@ -170,14 +190,17 @@ function Fm = TotalForceExertedByMembraneOnFilamentStructure(FilInd,MemInd,Filam
                         Fs2 = k*(sqrt(delX2^2+delY2^2)-D); % Total spring force
                         Fy2 = Fdir2*Fs2*sin(atan(delY2/delX2));  % Y component of spring force
                     end
+                    
+                    Fsprings = Fy1 + Fy2;
+                    Fsprings(Fsprings > 0) = 0; 
                     % Calculate Boundary Force from filament crossing membrane
-                    CrossDelta = Filaments.XYCoords{f}(end,2) - Membrane.Nodes(Membrane.Segments(m,1),2); % How much filament crosses membrane segment
-                    CrossDelta(CrossDelta < 0) = 0;
+                    CrossDelta = Filaments.XYCoords{f}(end,2) - (Membrane.Nodes(Membrane.Segments(m,1),2)); % How much filament crosses membrane segment
+                    
                     Fb = -ModelParameters.BoundaryForceSpringConstant*CrossDelta;
-
-                    if (Fy1+Fy2) < 0 % Only add the contribution if the total force of the two springs points points towards the filament
-                        Fm = Fm + Fy1 + Fy2 + Fb;
-                    end
+                    Fb(CrossDelta < 0) = 0;
+                    %if (Fy1+Fy2) < 0 % Only add the contribution if the total force of the two springs points points towards the filament
+                    Fm = Fm + Fsprings + Fb;
+                   % end
             end
         end
 end
@@ -303,7 +326,7 @@ end
 
 %======================================================================================================
 %======================================================================================================
-
+% NOT USED
 function Fc = CreateContainmentForce(Filaments,idx1,ModelParameters)
     
     % NOT USED ------
@@ -332,16 +355,12 @@ end
 
 %======================================================================================================
 %======================================================================================================
-
+        
 function [FAx,FAy,Adhesions,FAConnections,Tensions,kBreaks,Regions,AttachedFilament,AdhesionIndex] = ...
-                                   CalculateForceDueToFAConnections(idx,Filaments,Adhesions,FAConnections,ModelParameters)
+                                       CalculateForceDueToFAConnections(idx,Filaments,Adhesions,FAConnections,ModelParameters)
 
-        slope  = ModelParameters.DoubleExp_Slope;
-        base   = ModelParameters.DoubleExp_Base;
-        slope2 = ModelParameters.DoubleExp_Slope2;
-        A = ModelParameters.DoubleExp_A;
-        B = ModelParameters.DoubleExp_B;
-        C = ModelParameters.DoubleExp_C;
+
+        [slope1,base,slope2,A,B,C] = MolecularClutchPeakParameters(ModelParameters.MolecularClutch_PeakNumber);
         Tensions = [];
         kBreaks = [];
         AttachedFilament = [];
@@ -353,49 +372,56 @@ function [FAx,FAy,Adhesions,FAConnections,Tensions,kBreaks,Regions,AttachedFilam
         
         if ~isempty(FAConnections.AdhesionIndex)
             for f = idx'
-                 con = find(FAConnections.FilamentName == Filaments.Name(f,1));
+                 con = find(FAConnections.FilamentName == Filaments.Name(f,1)); % Find adhesions attached to this filament
                  if ~isempty(con)
                          for c = con'
-                             midx = find(Filaments.MonomerIndices{f} == FAConnections.MonomerIndex(c));
-                             aidx = FAConnections.AdhesionIndex(c,1);
-                             xDist = Adhesions.XYPoints(aidx,1) - Filaments.XYCoords{f}(midx,1); 
-                             yDist = Adhesions.XYPoints(aidx,2) - Filaments.XYCoords{f}(midx,2); 
-                             StretchDist = sqrt(xDist^2 + yDist^2) - ModelParameters.AdhesionSpringEqLength;
-                             StretchDist(StretchDist < 0) = 0;
-                             ConnectionTension = StretchDist*ModelParameters.AdhesionSpringConstant;
-                             Tensions = [Tensions;ConnectionTension];
-                             AttachedFilament = [AttachedFilament; f];
+                             midx = find( Filaments.MonomerIndices{f} == FAConnections.MonomerIndex(c) ); % Find index of attached monomer (used to get XY coords of monomer)
+                             aidx = FAConnections.AdhesionIndex(c,1);                                     % Find index of adhesion in Adhesions (used to get XY coords of adhesion)
+                             xDist = Adhesions.XYPoints(aidx,1) - Filaments.XYCoords{f}(midx,1); % X Distance between adhesion and attached filament monomer
+                             yDist = Adhesions.XYPoints(aidx,2) - Filaments.XYCoords{f}(midx,2); % Y Distance between adhesion and attached filament monomer
+                             SeparationDist = sqrt( xDist^2 + yDist^2 );                         % Distance between adhesion and attached filament monomer
+                             StretchDist = SeparationDist - ModelParameters.AdhesionSpringEqLength;  % Stretch distance
+                             StretchDist(StretchDist < 0) = 0;                                       % If stretch distance is less than Equilibrium length, StretchDist = 0;
+                             ConnectionTension = StretchDist*ModelParameters.AdhesionSpringConstant; % Fa = ka*x (Calcualte spring force between adhesion and filament
+                             
+                             Tensions = [Tensions; ConnectionTension];              % concatenate Tensions, Filament Name, Adhesion Index, and Adhesion region information
+                             AttachedFilament = [AttachedFilament; Filaments.Name(f)];
                              AdhesionIndex = [AdhesionIndex; aidx];
-                             ForceX = ConnectionTension*(xDist/sqrt(xDist^2+yDist^2));
-                             ForceY = ConnectionTension*(yDist/sqrt(xDist^2+yDist^2));
-                             FAx = FAx + ForceX;
-                             FAy = FAy + ForceY;
-                             kBreakRate =  base*exp(A*slope*ConnectionTension) + C*exp(B*slope2*ConnectionTension);
-                             %kBreakRate = 0.1;
-                             kBreaks = [kBreaks; kBreakRate];
-                             % Test if Adhesion-Filament connection breaks (Molecular Clutch)
-                             if rand(1) < (kBreakRate)*ModelParameters.TimeStep && ModelParameters.AllowAdhesionFilamentBondBreak
-                                 BreakIdx = [BreakIdx; c];
-                             end
                              Regions = [Regions; Adhesions.RegionLocation(aidx,1)];
+                             
+                             ForceX = ConnectionTension*(xDist/SeparationDist);   % Fx = F*(x component of separation distance unit vector)
+                             ForceY = ConnectionTension*(yDist/SeparationDist);   % Fy = F*(y component of separation distance unit vector)
+                             
+                             FAx = FAx + ForceX;                                  % Accumulate all the forces from adhesions being exerted on this filament structure
+                             FAy = FAy + ForceY;
+                             
+                             % If Molecular Clutch is turned on, deactivation of adhesion rate is dependent on tension
+                             kBreakRate =  base*exp(A*slope1*ConnectionTension) + C*exp(B*slope2*ConnectionTension);
+                             kBreaks = [kBreaks; kBreakRate]; % Accumulate calculated deactivation rates (if needed for data recording)
+                             
+                             % IF rand < dt*kBreakRate AND Molecular Clutch is ON 
+                             if rand(1) < (kBreakRate)*ModelParameters.TimeStep && ModelParameters.Adhesion_MolecularClutchOn
+                                 BreakIdx = [BreakIdx; c]; % Acculumate indices of adhesions that need to be deactivated
+                             end
+                             
                          end
                  end
             end
             
-            % Remove Adhesion-Filament broken connections -----------------
+            % Remove connections of deactivated Adhesion-Filament connections (only executes if MC is on. Otheriwse BreakIdx is always empty)-----------------
             if ~isempty(BreakIdx)
                  a = FAConnections.AdhesionIndex(BreakIdx,1);
                  Adhesions.AttachedFilamentName(a,1) = NaN;
                  FAConnections.AdhesionIndex(BreakIdx,:) = [];
                  FAConnections.FilamentName(BreakIdx,:) = [];
                  FAConnections.MonomerIndex(BreakIdx,:) = [];
-                 if ModelParameters.Adhesion_OFF_DependentOnAdhesionFilamentTension
-                        Adhesions.XYPoints(a,1) = NaN;
-                        Adhesions.XYPoints(a,2) = NaN;
-                        Adhesions.RegionLocation(a,:) = NaN;
-                        Adhesions.ActiveStatus(a,1) = false;
-                        Adhesions.AttachedFilamentName(a,1) = NaN;
-                 end
+                 %if ModelParameters.Adhesion_MolecularClutchOn
+                 Adhesions.XYPoints(a,1) = NaN;
+                 Adhesions.XYPoints(a,2) = NaN;
+                 Adhesions.RegionLocation(a,:) = NaN;
+                 Adhesions.ActiveStatus(a,1) = false;
+                 Adhesions.AttachedFilamentName(a,1) = NaN;
+                 %end
             end 
             %--------------------------------------------------------------
         end

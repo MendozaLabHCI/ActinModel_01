@@ -20,7 +20,11 @@ function [Filaments,Adhesions,FAConnections,PolymCoeffData] = PolymerizeDepolyme
 
             % Check if it's capped first before polymerizing or depolymerizing
             if ~Filaments.IsCapped(f,1) 
-                    [~,~,PolymCoeff] = TestIfFilamentIsHittingMembraneAndWhere(f,Filaments,FilamentTips,Membrane,ModelParameters);
+                    if ModelParameters.BrownianRatchetOn
+                        [~,~,PolymCoeff] = TestIfFilamentIsHittingMembraneAndWhere(f,Filaments,FilamentTips,Membrane,ModelParameters);
+                    else
+                        PolymCoeff = 1;
+                    end
                     % Run random selection test ----------------------------------------------------------------------------
                     barbed_on_test  =  rand(1) < PolymCoeff*ModelParameters.k_on_barbed*ModelParameters.TimeStep;
                     barbed_off_test =  rand(1) < PolymCoeff*ModelParameters.k_off_barbed*ModelParameters.TimeStep;
@@ -158,7 +162,7 @@ end
 %======================================================================================================
 %======================================================================================================
 
-function [MemInd,DistFromMembrane,PolymCoeff] = TestIfFilamentIsHittingMembraneAndWhere(f,Filaments,FilamentTips,Membrane,ModelParameters)
+function [m,DistFromMembrane,PolymCoeff] = TestIfFilamentIsHittingMembraneAndWhere(f,Filaments,FilamentTips,Membrane,ModelParameters)
        
         DistFromMembrane = [];
         PolymCoeff = 1;
@@ -167,11 +171,11 @@ function [MemInd,DistFromMembrane,PolymCoeff] = TestIfFilamentIsHittingMembraneA
         nS = size(Membrane.Segments,1); 
         SpringWidth = ModelParameters.SpringWidth;
         % Find which membrane segment's x-coordinates are surrounding the endponit of the filament
-        MemInd = find( Membrane.Nodes(Membrane.Segments(:,1),1)-SpringWidth/2 <= FilamentTips(f,1) &... % Left segment endpoint  <= Filament X-end
-                       Membrane.Nodes(Membrane.Segments(:,2),1)+SpringWidth/2 >= FilamentTips(f,1) );   % Right segment endpoint >= Filament X-end 
+        m = find( Membrane.Nodes(Membrane.Segments(:,1),1)-SpringWidth/2 <= FilamentTips(f,1) &... % Left segment endpoint  <= Filament X-end
+                  Membrane.Nodes(Membrane.Segments(:,2),1)+SpringWidth/2 >= FilamentTips(f,1) );   % Right segment endpoint >= Filament X-end 
                    
-        if ~isempty(MemInd)
-            DistFromMembrane = Membrane.Nodes(Membrane.Segments(MemInd,1),2) - FilamentTips(f,2);
+        if ~isempty(m)
+            DistFromMembrane = Membrane.Nodes(Membrane.Segments(m,1),2) - FilamentTips(f,2);
             if DistFromMembrane > ModelParameters.ContactThresholdForMembrane
                 PolymCoeff = 1;
             else
@@ -180,43 +184,53 @@ function [MemInd,DistFromMembrane,PolymCoeff] = TestIfFilamentIsHittingMembraneA
                 Fy1 = 0;
                 Fy2 = 0;
                 % Calcualte spring force from spring on left side of membrane segment
-                if ~isequal(MemInd,1) % Don't calcualte if this is the far left membrane segment
-                    Fdir1 = sign(Membrane.Nodes(Membrane.Segments(MemInd-1,2),2) - Membrane.Nodes(Membrane.Segments(MemInd,1),2));
-                    delX1 = abs(Membrane.Nodes(Membrane.Segments(MemInd-1,2),1) - Membrane.Nodes(Membrane.Segments(MemInd,1),1));
-                    delY1 = abs(Membrane.Nodes(Membrane.Segments(MemInd-1,2),2) - Membrane.Nodes(Membrane.Segments(MemInd,1),2));
-                    Fs1 = k*(sqrt(delX1^2 + delY1^2)-D); % Total spring force
-                    Fy1 = Fdir1*Fs1*sin(atan(delY1/delX1));  % Y component of spring force
-                end
-                % Calcualte spring force from spring on right side of membrane segment
-                if ~isequal(MemInd,nS) % Don't calcualte if this is the far left membrane segment
-                    Fdir2 = sign(Membrane.Nodes(Membrane.Segments(MemInd+1,1),2) - Membrane.Nodes(Membrane.Segments(MemInd,2),2));
-                    delX2 = abs(Membrane.Nodes(Membrane.Segments(MemInd,2),1) - Membrane.Nodes(Membrane.Segments(MemInd+1,1),1));
-                    delY2 = abs(Membrane.Nodes(Membrane.Segments(MemInd,2),2) - Membrane.Nodes(Membrane.Segments(MemInd+1,1),2));
-                    Fs2 = k*(sqrt(delX2^2+delY2^2)-D); % Total spring force
-                    Fy2 = Fdir2*Fs2*sin(atan(delY2/delX2));  % Y component of spring force
-                end
-                % Calculate Boundary Force of Filament crossing membrane
-                CrossDelta = Filaments.XYCoords{f}(end,2) - Membrane.Nodes(Membrane.Segments(MemInd,1),2); % How much filament crosses membrane segment
-                CrossDelta(CrossDelta < 0) = 0;
-                Fb = -ModelParameters.BoundaryForceSpringConstant*CrossDelta;
-        
-                %display(Fb)
-                %-------------------------------------------------------------
-                if (Fy1+Fy2) < 0 % Only add the contribution if the total force of the two springs points 'down' (-y direction) towards the filament
-                    Fm = abs( Fy1 + Fy2 + Fb );% + ModelParameters.Fmin;
-                else
-                    Fm = abs( Fb );
-                end
+                    if isequal(m,1) % Don't calcualte if this is the far left membrane segment
+                        Fdir1 = sign(Membrane.Nodes(Membrane.Segments(nS,2),2) - Membrane.Nodes(Membrane.Segments(m,1),2));
+                        delX1 =  abs(Membrane.Nodes(Membrane.Segments(nS,2),1) - Membrane.Nodes(Membrane.Segments(m,1),1));
+                        delY1 =  abs(Membrane.Nodes(Membrane.Segments(nS,2),2) - Membrane.Nodes(Membrane.Segments(m,1),2));
+                        Fs1 = k*(sqrt(delX1^2 + delY1^2)-D); % Total spring force
+                        Fy1 = Fdir1*Fs1*sin(atan(delY1/delX1));  % Y component of spring force
+                    else
+                        Fdir1 = sign(Membrane.Nodes(Membrane.Segments(m-1,2),2) - Membrane.Nodes(Membrane.Segments(m,1),2));
+                        delX1 =  abs(Membrane.Nodes(Membrane.Segments(m-1,2),1) - Membrane.Nodes(Membrane.Segments(m,1),1));
+                        delY1 =  abs(Membrane.Nodes(Membrane.Segments(m-1,2),2) - Membrane.Nodes(Membrane.Segments(m,1),2));
+                        Fs1 = k*(sqrt(delX1^2 + delY1^2)-D); % Total spring force
+                        Fy1 = Fdir1*Fs1*sin(atan(delY1/delX1));  % Y component of spring force
+                    end
+                    % Calculate spring force from spring on right side of membrane segment
+                    if isequal(m,nS) % Don't calcualte if this is the far left membrane segment
+                        Fdir2 = sign(Membrane.Nodes(Membrane.Segments(1,1),2) - Membrane.Nodes(Membrane.Segments(m,2),2));
+                        delX2 =  abs(Membrane.Nodes(Membrane.Segments(m,2),1) - Membrane.Nodes(Membrane.Segments(1,1),1));
+                        delY2 =  abs(Membrane.Nodes(Membrane.Segments(m,2),2) - Membrane.Nodes(Membrane.Segments(1,1),2));
+                        Fs2 = k*(sqrt(delX2^2+delY2^2)-D); % Total spring force
+                        Fy2 = Fdir2*Fs2*sin(atan(delY2/delX2));  % Y component of spring force
+                    else
+                        Fdir2 = sign(Membrane.Nodes(Membrane.Segments(m+1,1),2) - Membrane.Nodes(Membrane.Segments(m,2),2));
+                        delX2 =  abs(Membrane.Nodes(Membrane.Segments(m,2),1) - Membrane.Nodes(Membrane.Segments(m+1,1),1));
+                        delY2 =  abs(Membrane.Nodes(Membrane.Segments(m,2),2) - Membrane.Nodes(Membrane.Segments(m+1,1),2));
+                        Fs2 = k*(sqrt(delX2^2+delY2^2)-D); % Total spring force
+                        Fy2 = Fdir2*Fs2*sin(atan(delY2/delX2));  % Y component of spring force
+                    end
+                    
+                    Fsprings = Fy1 + Fy2;
+                    Fsprings(Fsprings > 0) = 0; 
+                    
+                    % Calculate Boundary Force from filament crossing membrane
+                    CrossDelta = Filaments.XYCoords{f}(end,2) - (Membrane.Nodes(Membrane.Segments(m,1),2)); % How much filament crosses membrane segment
+                    
+                    Fb = -ModelParameters.BoundaryForceSpringConstant*CrossDelta;
+                    Fb(CrossDelta < 0) = 0;
+                    %if (Fy1+Fy2) < 0 % Only add the contribution if the total force of the two springs points points towards the filament
+                    Fm = abs(Fsprings + Fb);
                 % Create a polymerization coefficient that varies from 0-1 in the 15nm window below membrane.
                 % It varies with how much force the membrane is pushing on it.
-                PolymCoeff = exp(-1*Fm/4.11); 
-                
+                   PolymCoeff = exp(-1*Fm/4.11); 
+                   %PolymCoeff(CrossDelta > 0) = 0;
                 % Create a polymerization coefficient that varies from 0-1 in the contact threshold region of membrane
                 % and below that it is 1 and above membrane it is 0;
 %                 PolymCoeff(DistFromMembrane < 0) = 0; % For the case the filament is above the membrane
 %                 PolymCoeff(DistFromMembrane > ModelParameters.ContactThresholdForMembrane) = 1;
             end
         end
-
 end
 

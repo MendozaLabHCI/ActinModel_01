@@ -1,11 +1,15 @@
-function [FAConnections,count] = PlotFilamentsAndMembrane(nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters)
+function [FAConnections,count] = PlotFilamentsAndMembrane_custom01(nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters)
 
     if (count >= nth) || isequal(t,0)% Plot every 10th, 100th, or nth frame etc.
         count = 0;
-        figure(FH)
-        cla(AH1)
-        cla(AH2)
-        
+        figure(FH); clf
+        delete(AH1)
+        delete(AH2)
+        delete(AH3)
+        AH1 = axes('Parent',FH);
+        set(AH1,'LineWidth',2,'FontSize',18)
+        set(gcf,'Position',[871         204        1024         670])
+
         idxMF = find(Filaments.Parent == 0); % Find Main Filaments (Filaments that are at the top of the parent/daughter structure)
         nC = length(idxMF);
         C = lines(nC); % Create colors for each of the attached groups of filaments
@@ -69,10 +73,10 @@ function [FAConnections,count] = PlotFilamentsAndMembrane(nth,count,Filaments,Me
        idx = FAConnections.AdhesionIndex;
        plot(AH1, Adhesions.XYPoints(idx,1),Adhesions.XYPoints(idx,2),  '*r', 'MarkerSize', 6)
        
-       title(AH1,['Time = ', sprintf('%#0.3f',t), ' sec     Adhesion Density (\mum^{-2}) = ',... 
-                  num2str(nAdhes(index,1)/AreaOfAllRegions,'%#3.1f'),...
-                  '     Adhesion-Filament Connections = ', num2str(size(FAConnections.AdhesionIndex,1)),... 
-                  '     dt = ', num2str(ModelParameters.TimeStep),' sec'],...
+       title(AH1,[{['Time = ', sprintf('%#0.3f',t), ' sec     Adhesion Density (\mum^{-2}) = ',... 
+                  num2str(nAdhes(index,1)/AreaOfAllRegions,'%#3.1f')];...
+                  ['Adhesion-Filament Connections = ', num2str(size(FAConnections.AdhesionIndex,1)),... 
+                  '     dt = ', num2str(ModelParameters.TimeStep),' sec']}],...
                   'FontName','monospaced','FontSize', 14, 'FontWeight','bold')
               
        MemYmax = ceil(max(Membrane.Nodes(:,2)));
@@ -80,11 +84,11 @@ function [FAConnections,count] = PlotFilamentsAndMembrane(nth,count,Filaments,Me
        %axis(AH1,[-ModelParameters.MemleadingEdgeLengthInNanometers/2 ModelParameters.MemleadingEdgeLengthInNanometers/2 (MemYmax-800) (MemYmax+200)])
        %padding =  ModelParameters.HaloPaddingSize;
        padding = 0.1*( Membrane.Nodes(end,1) -  Membrane.Nodes(1,1));
-       axis(AH1,[( Membrane.Nodes(1,1) - padding) ( Membrane.Nodes(end,1) + padding) 0 300]); %1000])
+       axis(AH1,[( Membrane.Nodes(1,1) - padding) ( Membrane.Nodes(end,1) + padding) 0 400]); %1000])
        %axis(AH1,[-1200 1200 -200 600]); %1000])
        box(AH1, 'on')
-       xlabel(AH1,'X(nm)','FontSize',14)
-       ylabel(AH1,'Y(nm)','FontSize',14)
+       xlabel(AH1,'X(nm)','FontSize',24)
+       ylabel(AH1,'Y(nm)','FontSize',24)
        
 
        % Plot Adhesions connections --------------------------
@@ -135,39 +139,56 @@ function [FAConnections,count] = PlotFilamentsAndMembrane(nth,count,Filaments,Me
             % Plots Springs ---------------------------------------------------
             for n = 1:Nspr
                 plot( AH1, [Membrane.Nodes(Membrane.Springs(n,1),1);Membrane.Nodes(Membrane.Springs(n,2),1)],...
-                           [Membrane.Nodes(Membrane.Springs(n,1),2) + offset; Membrane.Nodes(Membrane.Springs(n,2),2) + offset], 'k:','LineWidth',2)
+                           [Membrane.Nodes(Membrane.Springs(n,1),2) + offset; Membrane.Nodes(Membrane.Springs(n,2),2) + offset], 'k-','LineWidth',2)
             end
       %---------------------------------------------------
-      
+      % Plot Contact Region ------------------------------------
+%             Nseg = size(Membrane.Segments,1);
+%             Nspr = size(Membrane.Springs,1);
+%             offset = -15;% nm
+%             % Plot Segments ---------------------------------------------------
+%             for n = 1:Nseg
+%                 plot( AH1, [Membrane.Nodes(Membrane.Segments(n,1),1);Membrane.Nodes(Membrane.Segments(n,2),1)],...
+%                            [Membrane.Nodes(Membrane.Segments(n,1),2) + offset; Membrane.Nodes(Membrane.Segments(n,2),2) + offset], 'k:','LineWidth',2)
+%                 if isequal(n,1)
+%                     hold(AH1,'on'); 
+%                 end
+%             end
+%             % Plots Springs ---------------------------------------------------
+%             for n = 1:Nspr
+%                 plot( AH1, [Membrane.Nodes(Membrane.Springs(n,1),1);Membrane.Nodes(Membrane.Springs(n,2),1)],...
+%                            [Membrane.Nodes(Membrane.Springs(n,1),2) + offset; Membrane.Nodes(Membrane.Springs(n,2),2) + offset], 'k-','LineWidth',2)
+%             end
+      %---------------------------------------------------
       
       
        hold(AH1,'off')
        
-       % Plot Total Monomers
-       yyaxis(AH2,'left')
-           plot(AH2, TimeVec, nMono,'-b')
-           xlim(AH2,[0,max(TimeVec)])
-           ylim(AH2,[0,max(nMono)+100])
-           xlabel(AH2,'Time (s)','FontSize',14)
-           ylabel(AH2,[{'Filament Mass'};{'(Monomers)'}],'FontSize',14)
-       yyaxis(AH2,'right')
-           plot(AH2, TimeVec, nAdhes,'-r')
-           if ~isnan( max(nAdhes(1000:end,1)) )
-                ylim(AH2,[0, max(nAdhes(1000:end,1))+10])
-           end
-           ylabel(AH2,'nAdhesions','FontSize',14)
-       drawnow
-       
-       % Plot Membrane Speed
-       idx = find(~isnan(MemVel));
-       VelSmooth = NaN(size(MemVel));
-       VelSmooth(idx,1) = smooth(MemVel(idx),0.5/ModelParameters.TimeStep,'sgolay');
-       plot(AH3,TimeVec,MemVel,'-','Color',[0.8,0.8,0.8]); hold(AH3,'on')
-       plot(AH3,TimeVec,VelSmooth,'r-','LineWidth',2);     hold(AH3,'off')
-       xlim(AH3,[0,max(TimeVec)])
-       %ylim(AH3,[0,max(nMono)+10])
-       xlabel(AH3,'Time (s)','FontSize',14)
-       ylabel(AH3,'Membrane Speed (nm/s)','FontSize',14)
+%        % Plot Total Monomers
+%        yyaxis(AH2,'left')
+%            plot(AH2, TimeVec, nMono,'-b')
+%            xlim(AH2,[0,max(TimeVec)])
+%            ylim(AH2,[0,max(nMono)+100])
+%            xlabel(AH2,'Time (s)','FontSize',14)
+%            ylabel(AH2,[{'Filament Mass'};{'(Monomers)'}],'FontSize',14)
+%        yyaxis(AH2,'right')
+%            plot(AH2, TimeVec, nAdhes,'-r')
+%            if ~isnan( max(nAdhes(1000:end,1)) )
+%                 ylim(AH2,[0, max(nAdhes(1000:end,1))+10])
+%            end
+%            ylabel(AH2,'nAdhesions','FontSize',14)
+%        drawnow
+%        
+%        % Plot Membrane Speed
+%        idx = find(~isnan(MemVel));
+%        VelSmooth = NaN(size(MemVel));
+%        VelSmooth(idx,1) = smooth(MemVel(idx),0.5/ModelParameters.TimeStep,'sgolay');
+%        plot(AH3,TimeVec,MemVel,'-','Color',[0.8,0.8,0.8]); hold(AH3,'on')
+%        plot(AH3,TimeVec,VelSmooth,'r-','LineWidth',2);     hold(AH3,'off')
+%        xlim(AH3,[0,max(TimeVec)])
+%        %ylim(AH3,[0,max(nMono)+10])
+%        xlabel(AH3,'Time (s)','FontSize',14)
+%        ylabel(AH3,'Membrane Speed (nm/s)','FontSize',14)
     end
 end
 

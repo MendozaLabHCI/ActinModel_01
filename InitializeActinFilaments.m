@@ -1,4 +1,4 @@
-function Filaments = InitializeActinFilaments(ModelParameters)
+function Filaments = InitializeActinFilaments(ModelParameters,Membrane)
     % This function creates all the initial actin filaments
     N = ModelParameters.StartingNumberOfFilaments;
     theta = 180*rand(N,1);
@@ -12,7 +12,7 @@ function Filaments = InitializeActinFilaments(ModelParameters)
     D = ModelParameters.MonomerLength; %(nm)
     
     for f = 1:N
-        % Create initial two point of filament as a horizontal line (origin is implied as second point).
+        % Create initial two points of filament as a horizontal line (origin [0,0] is implied to be the second point).
             x = ModelParameters.MonomerLength;
             y = 0;
         % Now randomly rotate between 0 and 180 degrees
@@ -41,13 +41,13 @@ function Filaments = InitializeActinFilaments(ModelParameters)
     
     % Setup starting/default parameters
     Filaments.IsCapped = false(N,1);          % Has the filament been capped?
-    Filaments.MainIndex = (1:N)';             % Main Filament group that this filament is a part of. (based on parent filament name)
+    Filaments.MainIndex = (1:N)';             % Main Filament group that this filament is a part of. (based on parent filament name: Filament structure)
     Filaments.Parent = zeros(N,1);            % The filament parent name that each filament branched off of (zero if it's a main filament)
     Filaments.ParentIndex  = zeros(N,1);      % The Monomer Index on the parent filament where this filament branched from.
   
-    
+    SpreadWidth = Membrane.Nodes(end,1) - Membrane.Nodes(1,1);
     % Spread out Filaments in the x direction and apply y-offset --------------------------------------
-    Xrand = ModelParameters.SpreadWidth*(rand(N,1)-0.5);
+    Xrand = (SpreadWidth)*(rand(N,1)-0.5);
     for f = 1:N
          Filaments.XYCoords{f}(:,1) = Filaments.XYCoords{f}(:,1) + Xrand(f,1);
          Filaments.XYCoords{f}(:,2) = Filaments.XYCoords{f}(:,2) + ModelParameters.VerticalOffSet;

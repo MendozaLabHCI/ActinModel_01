@@ -1,9 +1,9 @@
 function Adhesions = InitializeAdhesions(Membrane,ModelParameters)
     
     SpringWidth = ModelParameters.SpringWidth;
-    MembraneLength = Membrane.Nodes(end,1) - Membrane.Nodes(1,1);
-    AdhesionRegionArea = MembraneLength*ModelParameters.AdhesionRegionDepth;
-    nA = ceil((ModelParameters.AdhesionTotalStartNumber/(1000^2))*AdhesionRegionArea);
+    % MembraneLength = Membrane.Nodes(end,1) - Membrane.Nodes(1,1);
+    % AdhesionRegionArea = MembraneLength*ModelParameters.AdhesionRegionDepth;
+    nA = ModelParameters.AdhesionTotalStartNumber; %ceil((ModelParameters.AdhesionTotalStartNumber/(1000^2))*AdhesionRegionArea);
     nS = size(Membrane.Segments,1); 
     Adhesions.RegionNodes = zeros(4,2,nS); 
     

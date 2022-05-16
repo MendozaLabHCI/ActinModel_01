@@ -56,7 +56,7 @@ function [Adhesions,FAConnections] = ManageAdhesions(Filaments,Adhesions,FAConne
             
             for a = idx1' 
                 r = randi(nR,1);
-                if rand(1) < ModelParameters.Adhesion_ON_ActivationRate*ModelParameters.TimeStep
+                if rand(1) < ModelParameters.Adhesion_ActivationRate * ModelParameters.TimeStep
                     delX = Adhesions.RegionNodes(2,1,r) - Adhesions.RegionNodes(1,1,r);
                     delY = Adhesions.RegionNodes(1,2,r) - Adhesions.RegionNodes(4,2,r);
                     
@@ -68,13 +68,14 @@ function [Adhesions,FAConnections] = ManageAdhesions(Filaments,Adhesions,FAConne
                 end
             end
             
-            % DE-ACTIVATE Adhesions randomly elected for activation ----------
-            if ModelParameters.Adhesion_OFF_DependentOnAdhesionFilamentTension
-                ModelParameters.Adhesion_OFF_ActivationRate = 0.001;
+            % DE-ACTIVATE Adhesions randomly elected for de-activation ----------
+            if ModelParameters.Adhesion_MolecularClutchOn
+                ModelParameters.Adhesion_DeActivationRate = 0.0;
             end
+            
             idx2 = find(Adhesions.ActiveStatus); % Find all the active adhesions
             for a = idx2' % For each adhesion, test if it is deactivated
-                if rand(1) < ModelParameters.Adhesion_OFF_ActivationRate*ModelParameters.TimeStep
+                if rand(1) < ModelParameters.Adhesion_DeActivationRate * ModelParameters.TimeStep
                     % Deactivate selected adhesion by resetting its parameters
                     Adhesions.XYPoints(a,:) = [NaN,NaN];
                     Adhesions.RegionLocation(a,:) = NaN;

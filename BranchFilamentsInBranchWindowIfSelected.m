@@ -80,8 +80,8 @@ function Answer = IsFilamentWithinTheBranchingWindowOfAMembraneSegment(Xtip,Ytip
                % and within branching window
                if Xtip >= (Membrane.Nodes(Membrane.Segments(m,1),1)-SpringWidth/2) &&... % Filament X-end >= Left segment endpoint
                   Xtip <= (Membrane.Nodes(Membrane.Segments(m,2),1)+SpringWidth/2) &&... % Filament X-end <= Right segment endpoint
-                  Ytip >= (Yseg-ModelParameters.branchWindowSize) &&...                % Filament tip > Lower Branch Window   
-                  Ytip <= (Yseg+ModelParameters.branchWindowSize)                      % Filament tip > Upper Branch Window   
+                  Ytip >= (Yseg-ModelParameters.branchWindowSize) &&...                  % Filament tip > Lower Branch Window   
+                  Ytip <= (Yseg)                                                         % Filament tip > Upper Branch Window   
                       Answer = true;
                       break
                end   

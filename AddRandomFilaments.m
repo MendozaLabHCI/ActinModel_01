@@ -32,7 +32,8 @@ function [Filaments] = AddRandomFilaments(Filaments,Membrane,ModelParameters,nMo
 
         % Make the filament's center of mass at [0,0]
         XYCoords = XYCoords - XYCoords(end,:)/2;
-        Xrand = ModelParameters.SpreadWidth*(rand(1)-0.5); % Calculate random horizonal position
+        SpreadWidth = Membrane.Nodes(end,1) - Membrane.Nodes(1,1);
+        Xrand = (SpreadWidth)*(rand(1)-0.5); % Calculate random horizonal position
         XYCoords(:,1) = XYCoords(:,1) + Xrand;
         % Find membrane segment closest to this new horizontal position and use it's y coordinate to reference where to move new filament to.
         MembraneSegmentCenters = mean([ Membrane.Nodes(Membrane.Segments(:,1),1) ,...
