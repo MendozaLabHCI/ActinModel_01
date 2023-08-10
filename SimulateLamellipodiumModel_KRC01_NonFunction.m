@@ -72,6 +72,7 @@
             tic
             RecordFrames = false;
             BranchesPerMicron = [];
+            
             % Get adhesions up to "stable" level before starting model ---------------------------------------------------
             disp('Creating stable adhesion level.... please wait')
             for k = 1:round(2/ModelParameters.TimeStep)
@@ -83,7 +84,6 @@
             MinRF    = NaN(length(TimeVec),1);
             MaxRF    = NaN(length(TimeVec),1);
 
-%nBranches = NaN(Length(TimeVec),1);
 
             % START Model ----------------------------------------------------------------------------------------------- 
             for t = TimeVec
@@ -108,29 +108,6 @@
 
                 if ShowPlot
                     [FAConnections,count] = PlotFilamentsAndMembrane(nth,count,Filaments,Membrane,Adhesions,FAConnections,FH,AH1,AH2,AH3,t,nMono,nAdhes,MemVel,index,TimeVec,ModelParameters);
-                
-                    %Write snapshots of figure as tif images
-                    if RecordFrames && rem(count,nth) == 0 % nth = 1; RecordFrames = true;
-                        frame = frame + 1;
-                        F = getframe(FH);
-%                         imwrite(F.cdata,...
-%                         ['X:\Mendoza Lab\MATLAB\Actin Growth Network Modeling\NEW_Model_Runs2\Movies\BR-MC tau = 3 Movie03_50msSteps_10sec\Frame_',sprintf('%04d',frame),'.tif'])
-                    end
-% 
-%                     if rem(t,0.1) == 0 && t~=0
-%                         RFmovmean = movmean(MeanRF(1:index),1000);
-%                         RFMaxmean = movmean(MaxRF(1:index),1000);
-%                         RFMinmean = movmean(MinRF(1:index),1000);
-%                         figure(5); clf; set(gcf,'Color','w')
-%                         subplot(3,1,1);plot(TimeVec(1:index),RFMaxmean,'-b')   ;
-%                         ylabel('Retrograde flow (nm/s)'); legend('max'); title(num2str(RFMaxmean(index))); grid on
-%                         subplot(3,1,2);plot(TimeVec(1:index),RFmovmean,'-r','LineWidth',1); 
-%                         ylabel('Retrograde flow (nm/s)'); legend('mean');  title(num2str(RFmovmean(index)))
-%                          grid on
-%                         subplot(3,1,3);plot(TimeVec(1:index),RFMinmean,'-k')   ;
-%                         xlabel('Time (s)'); ylabel('Retrograde flow (nm/s)'); legend('min');  title(num2str(RFMinmean(index))); grid on
-%                        
-%                     end
                 end
 
                 SimData.Nodes(:,:,index) = single(Membrane.Nodes); % Record membrane segment positions
