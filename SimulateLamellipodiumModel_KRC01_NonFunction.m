@@ -68,11 +68,9 @@
             index = 0;  
             count = 0;
             frame = 0;
-            nth = 100; % nth time frame to plot
+            nth = 50; % create plot at each nth iteration
             tic
-            RecordFrames = false;
-            BranchesPerMicron = [];
-            
+
             % Get adhesions up to "stable" level before starting model ---------------------------------------------------
             disp('Creating stable adhesion level.... please wait')
             for k = 1:round(2/ModelParameters.TimeStep)
@@ -120,6 +118,8 @@
           
             end
             % END Model --------------------------------------------------------------------------------------------------
+
+
 toc
 
 
